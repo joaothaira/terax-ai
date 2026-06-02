@@ -1,9 +1,10 @@
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
   applyDrag,
   applyResize,
   clampGeom,
   defaultGeom,
+  maximizedGeom,
   type Geom,
   type ResizeDir,
   type Viewport,
@@ -53,6 +54,9 @@ export function useMiniWindowGeometry() {
   const geom = useRef<Geom>({ x: 0, y: 0, w: 0, h: 0 });
   const frame = useRef(0);
   const pending = useRef<Geom | null>(null);
+  // Geometry to restore to when un-maximizing; null while in normal mode.
+  const restore = useRef<Geom | null>(null);
+  const [maximized, setMaximized] = useState(false);
 
   const flush = useCallback(() => {
     frame.current = 0;
@@ -85,8 +89,14 @@ export function useMiniWindowGeometry() {
       el.style.height = `${g.h}px`;
     }
     // Reclamp into the new viewport; persistence is left to the next gesture
-    // since loadGeom re-clamps on startup anyway.
-    const onResize = () => write(clampGeom(geom.current, viewport()));
+    // since loadGeom re-clamps on startup anyway. While maximized, keep the
+    // window filling the (new) viewport instead.
+    const onResize = () =>
+      write(
+        restore.current
+          ? maximizedGeom(viewport())
+          : clampGeom(geom.current, viewport()),
+      );
     window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("resize", onResize);
@@ -104,11 +114,17 @@ export function useMiniWindowGeometry() {
       // Don't capture the pointer or call preventDefault until the gesture
       // actually moves past the threshold, so a plain click on the header
       // still reaches its buttons, dropdowns and focus handlers.
+      // Dragging or resizing leaves maximized mode and takes over the geometry.
+      const disarmMaximize = () => {
+        restore.current = null;
+        setMaximized(false);
+      };
       let armed = threshold <= 0;
       if (armed) {
         e.preventDefault();
         el.setPointerCapture?.(pointerId);
         document.body.style.userSelect = "none";
+        disarmMaximize();
       }
 
       const onMove = (ev: PointerEvent) => {
@@ -119,6 +135,7 @@ export function useMiniWindowGeometry() {
           armed = true;
           el.setPointerCapture?.(pointerId);
           document.body.style.userSelect = "none";
+          disarmMaximize();
         }
         write(compute(start, dx, dy, viewport()));
       };
@@ -162,5 +179,21 @@ export function useMiniWindowGeometry() {
     [beginGesture],
   );
 
-  return { ref, onHeaderPointerDown, startResize };
+  const toggleMaximize = useCallback(() => {
+    if (restore.current) {
+      // Restore: clamp the saved geom back into the current viewport.
+      const g = clampGeom(restore.current, viewport());
+      restore.current = null;
+      setMaximized(false);
+      write(g);
+      saveGeom(g);
+    } else {
+      // Maximize: remember where we were, then fill the viewport.
+      restore.current = geom.current;
+      setMaximized(true);
+      write(maximizedGeom(viewport()));
+    }
+  }, [write]);
+
+  return { ref, onHeaderPointerDown, startResize, maximized, toggleMaximize };
 }

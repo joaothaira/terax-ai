@@ -129,6 +129,10 @@ type StoreState = {
   openMini: () => void;
   closeMini: () => void;
   toggleMini: () => void;
+  /** Whether the mini-window is currently maximized (near-fullscreen). Lifted
+   * here so the workspace can hide its own composer and avoid mounting two. */
+  miniMaximized: boolean;
+  setMiniMaximized: (v: boolean) => void;
 
   panelOpen: boolean;
   openPanel: () => void;
@@ -349,8 +353,10 @@ export const useChatStore = create<StoreState>((set, get) => ({
 
   mini: { open: false },
   openMini: () => set({ mini: { open: true } }),
-  closeMini: () => set({ mini: { open: false } }),
+  closeMini: () => set({ mini: { open: false }, miniMaximized: false }),
   toggleMini: () => set((s) => ({ mini: { open: !s.mini.open } })),
+  miniMaximized: false,
+  setMiniMaximized: (v) => set({ miniMaximized: v }),
 
   panelOpen: false,
   openPanel: () => set({ panelOpen: true }),

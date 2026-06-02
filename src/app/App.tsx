@@ -24,6 +24,7 @@ import {
   AiInputBar,
   AiInputBarConnect,
   AiMiniWindow,
+  ChatSessionsPanel,
   getAllKeys,
   getAllCustomEndpointKeys,
   hasAnyKey,
@@ -177,7 +178,12 @@ function readSidebarWidth(): number {
 function readSidebarView(): SidebarViewId {
   try {
     const stored = window.localStorage.getItem(SIDEBAR_VIEW_STORAGE_KEY);
-    if (stored === "explorer" || stored === "source-control") return stored;
+    if (
+      stored === "explorer" ||
+      stored === "source-control" ||
+      stored === "chat"
+    )
+      return stored;
   } catch {
     // ignore
   }
@@ -418,6 +424,7 @@ export default function App() {
   const focusInput = useChatStore((s) => s.focusInput);
   const openPanel = useChatStore((s) => s.openPanel);
   const panelOpen = useChatStore((s) => s.panelOpen);
+  const miniMaximized = useChatStore((s) => s.miniMaximized);
   const apiKeys = useChatStore((s) => s.apiKeys);
   const setApiKeys = useChatStore((s) => s.setApiKeys);
   const setCustomEndpointKeys = useChatStore((s) => s.setCustomEndpointKeys);
@@ -1609,6 +1616,8 @@ export default function App() {
                         onAttachToAgent={handleAttachFileToAgent}
                         onOpenMarkdownPreview={openMarkdownPreview}
                       />
+                    ) : sidebarView === "chat" ? (
+                      <ChatSessionsPanel />
                     ) : (
                       <SourceControlPanel
                         open
@@ -1646,7 +1655,10 @@ export default function App() {
                       aria-hidden={!panelOpen}
                     >
                       {hasComposer ? (
-                        <AiInputBar />
+                        // While the mini-window is maximized it hosts the
+                        // composer itself; mounting a second one would fight
+                        // over the shared textarea ref.
+                        miniMaximized ? null : <AiInputBar />
                       ) : (
                         <AiInputBarConnect
                           onAdd={() => void openSettingsWindow("models")}

@@ -6,6 +6,7 @@ export {
   SelectionAskAi,
 } from "./components/lazy";
 export { AgentStatusPill } from "./components/AgentStatusPill";
+export { ChatSessionsPanel } from "./components/ChatSessionsPanel";
 export { LocalAgentNotificationsBridge } from "./components/LocalAgentNotificationsBridge";
 export {
   EMPTY_PROVIDER_KEYS,

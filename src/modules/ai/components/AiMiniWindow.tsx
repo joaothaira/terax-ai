@@ -24,6 +24,8 @@ import {
   Cancel01Icon,
   Delete02Icon,
   FilterIcon,
+  Maximize01Icon,
+  Minimize01Icon,
   TerminalIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -39,6 +41,7 @@ import { usePreferencesStore } from "@/modules/settings/preferences";
 import { usePlanStore } from "../store/planStore";
 import { AgentSwitcher } from "./AgentSwitcher";
 import { AiChatView } from "./AiChat";
+import { AiInputBar } from "./AiInputBar";
 import { PlanDiffReview } from "./PlanDiffReview";
 import { TodoStrip } from "./TodoStrip";
 
@@ -66,13 +69,17 @@ const SUGGESTIONS = [
 export function AiMiniWindow() {
   const closeMini = useChatStore((s) => s.closeMini);
   const sessionId = useChatStore((s) => s.activeSessionId);
-  const openPanel = useChatStore((s) => s.openPanel);
-  const expandToPanel = () => {
-    closeMini();
-    openPanel();
-  };
 
-  const { ref, onHeaderPointerDown, startResize } = useMiniWindowGeometry();
+  const { ref, onHeaderPointerDown, startResize, maximized, toggleMaximize } =
+    useMiniWindowGeometry();
+
+  // Mirror maximized state into the store so the workspace can hide its own
+  // composer (only one AiInputBar may own the shared composer textarea ref).
+  const setMiniMaximized = useChatStore((s) => s.setMiniMaximized);
+  useEffect(() => {
+    setMiniMaximized(maximized);
+    return () => setMiniMaximized(false);
+  }, [maximized, setMiniMaximized]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -113,13 +120,15 @@ export function AiMiniWindow() {
         <Body
           sessionId={sessionId}
           onClose={closeMini}
-          onExpand={expandToPanel}
+          maximized={maximized}
+          onToggleMaximize={toggleMaximize}
           onHeaderPointerDown={onHeaderPointerDown}
         />
       ) : (
         <EmptyShell
           onClose={closeMini}
-          onExpand={expandToPanel}
+          maximized={maximized}
+          onToggleMaximize={toggleMaximize}
           onHeaderPointerDown={onHeaderPointerDown}
         />
       )}
@@ -160,12 +169,14 @@ function ResizeHandle({
 function Body({
   sessionId,
   onClose,
-  onExpand,
+  maximized,
+  onToggleMaximize,
   onHeaderPointerDown,
 }: {
   sessionId: string;
   onClose: () => void;
-  onExpand: () => void;
+  maximized: boolean;
+  onToggleMaximize: () => void;
   onHeaderPointerDown: (e: React.PointerEvent) => void;
 }) {
   const focusInput = useChatStore((s) => s.focusInput);
@@ -182,7 +193,8 @@ function Body({
         step={step}
         isBusy={isBusy}
         onClose={onClose}
-        onExpand={onExpand}
+        maximized={maximized}
+        onToggleMaximize={onToggleMaximize}
         messages={helpers.messages}
         onHeaderPointerDown={onHeaderPointerDown}
       />
@@ -193,7 +205,14 @@ function Body({
         {helpers.messages.length === 0 ? (
           <EmptyState onPick={focusInput} />
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col [&_.text-sm]:text-[12px] [&_p]:leading-relaxed">
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col [&_.text-sm]:text-[12px] [&_p]:leading-relaxed",
+              // Constrain to a centered reading column when maximized, like
+              // claude.ai / chatgpt.com.
+              maximized && "mx-auto w-full max-w-3xl",
+            )}
+          >
             <AiChatView
               messages={helpers.messages}
               status={helpers.status}
@@ -207,6 +226,14 @@ function Body({
       </div>
 
       <TodoStrip sessionId={sessionId} />
+
+      {/* When maximized the window covers the workspace composer, so host one
+          here to keep the chat self-contained (messages + input). */}
+      {maximized ? (
+        <div className="mx-auto w-full max-w-3xl">
+          <AiInputBar />
+        </div>
+      ) : null}
     </>
   );
 }
@@ -237,11 +264,13 @@ function PlanModeStrip() {
 
 function EmptyShell({
   onClose,
-  onExpand,
+  maximized,
+  onToggleMaximize,
   onHeaderPointerDown,
 }: {
   onClose: () => void;
-  onExpand: () => void;
+  maximized: boolean;
+  onToggleMaximize: () => void;
   onHeaderPointerDown: (e: React.PointerEvent) => void;
 }) {
   return (
@@ -250,7 +279,8 @@ function EmptyShell({
         step={null}
         isBusy={false}
         onClose={onClose}
-        onExpand={onExpand}
+        maximized={maximized}
+        onToggleMaximize={onToggleMaximize}
         onHeaderPointerDown={onHeaderPointerDown}
       />
       <div className="flex flex-1 items-center justify-center text-[11px] text-muted-foreground">
@@ -264,13 +294,16 @@ function Header({
   step,
   isBusy,
   onClose,
+  maximized,
+  onToggleMaximize,
   messages,
   onHeaderPointerDown,
 }: {
   step: string | null;
   isBusy: boolean;
   onClose: () => void;
-  onExpand: () => void;
+  maximized: boolean;
+  onToggleMaximize: () => void;
   messages?: UIMessage[];
   onHeaderPointerDown: (e: React.PointerEvent) => void;
 }) {
@@ -296,6 +329,21 @@ function Header({
           </span>
         ) : null}
         <SessionPicker />
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          onClick={onToggleMaximize}
+          className="size-5"
+          aria-label={maximized ? "Restore" : "Maximize"}
+          title={maximized ? "Restore" : "Maximize"}
+        >
+          <HugeiconsIcon
+            icon={maximized ? Minimize01Icon : Maximize01Icon}
+            size={11}
+            strokeWidth={1.75}
+          />
+        </Button>
         <Button
           type="button"
           size="icon"

@@ -21,6 +21,21 @@ export function defaultGeom(vp: Viewport): Geom {
   );
 }
 
+/** Near-fullscreen geometry used by the "maximize" toggle — leaves a small
+ * margin so the window still reads as a floating surface, not a takeover. */
+export function maximizedGeom(vp: Viewport): Geom {
+  const margin = vp.vw < 720 ? 12 : 24;
+  return clampGeom(
+    {
+      x: margin,
+      y: margin,
+      w: vp.vw - margin * 2,
+      h: vp.vh - margin * 2,
+    },
+    vp,
+  );
+}
+
 export function clampGeom(g: Geom, vp: Viewport): Geom {
   const w = clamp(g.w, MIN_W, Math.max(MIN_W, vp.vw));
   const h = clamp(g.h, MIN_H, Math.max(MIN_H, vp.vh));
